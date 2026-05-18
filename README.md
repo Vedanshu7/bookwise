@@ -62,10 +62,6 @@ bookwise/
 └── README.md
 ```
 
-## Improvement Roadmap
-
-See [IMPROVEMENTS.md](IMPROVEMENTS.md)
-
 ## License
 
 MIT
