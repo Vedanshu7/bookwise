@@ -1,0 +1,144 @@
+version: "3.9"
+
+# ============================================================
+# Shared Airflow config — inherited by every airflow-* service.
+# ============================================================
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: airflow/Dockerfile
+  environment:
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CORE__FERNET_KEY: ""
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth"
+    MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/Bookify}
+    PIPELINE_MIN_SUPPORT: ${PIPELINE_MIN_SUPPORT:-0.01}
+    PIPELINE_MIN_LIFT: ${PIPELINE_MIN_LIFT:-1.0}
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - airflow-logs:/opt/airflow/logs
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+
+  # ============================================================
+  # Flask web application.
+  # ============================================================
+  flask:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/Bookify}
+      SECRET_KEY: ${SECRET_KEY:-change-me}
+      FLASK_DEBUG: ${FLASK_DEBUG:-false}
+    depends_on:
+      - mongo
+    restart: unless-stopped
+
+  # ============================================================
+  # MongoDB — stores books, users, ratings, and recommendations.
+  # ============================================================
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+
+  # ============================================================
+  # PostgreSQL — Airflow metadata database.
+  # ============================================================
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================
+  # Redis — Celery message broker for Airflow workers.
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================
+  # Airflow init — migrates DB and creates admin user (runs once).
+  # ============================================================
+  airflow-init:
+    <<: *airflow-common
+    command: >
+      bash -c "
+        airflow db migrate &&
+        airflow users create
+          --username admin
+          --firstname Admin
+          --lastname User
+          --role Admin
+          --email admin@example.com
+          --password admin || true
+      "
+    restart: "no"
+
+  # ============================================================
+  # Airflow webserver — UI at http://localhost:8080.
+  # ============================================================
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================
+  # Airflow scheduler — triggers DAG runs on schedule.
+  # ============================================================
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    restart: unless-stopped
+
+  # ============================================================
+  # Airflow worker — executes DAG tasks via Celery.
+  # ============================================================
+  airflow-worker:
+    <<: *airflow-common
+    command: celery worker
+    restart: unless-stopped
+
+volumes:
+  mongo-data:
+  postgres-data:
+  airflow-logs:
