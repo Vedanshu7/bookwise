@@ -20,7 +20,7 @@
         <div class="main-menu">
             <div class="container">
                 <nav class="navbar navbar-expand-lg navbar-light">
-                    <a class="navbar-brand" href="index.html"><img
+                    <a class="navbar-brand" href="{{ url_for('index') }}"><img
                             src="{{ url_for('static', filename='images/logo.png')}}" alt="logo"></a>
                     <button class="navbar-toggler" type="button" data-toggle="collapse"
                         data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent"
@@ -30,20 +30,26 @@
                     <div class="collapse navbar-collapse" id="navbarSupportedContent">
                         <ul class="navbar-nav ml-auto">
                             <li class="navbar-item active">
-                                <a href="index.html" class="nav-link">Home</a>
+                                <a href="{{ url_for('index') }}" class="nav-link">Home</a>
                             </li>
                             <li class="navbar-item">
-                                <a href="shop.html" class="nav-link">Shop</a>
+                                <a href="{{ url_for('products') }}" class="nav-link">Products</a>
+                            </li>
+                            {% if session.get('username') %}
+                            <li class="navbar-item">
+                                <a href="{{ url_for('recommend') }}" class="nav-link">Recommendations</a>
                             </li>
                             <li class="navbar-item">
-                                <a href="about.html" class="nav-link">About</a>
+                                <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
+                            </li>
+                            {% else %}
+                            <li class="navbar-item">
+                                <a href="{{ url_for('login') }}" class="nav-link">Login</a>
                             </li>
                             <li class="navbar-item">
-                                <a href="faq.html" class="nav-link">FAQ</a>
+                                <a href="{{ url_for('register') }}" class="nav-link">Register</a>
                             </li>
-                            <li class="navbar-item">
-                                <a href="login.html" class="nav-link">Login</a>
-                            </li>
+                            {% endif %}
                         </ul>
                         <div class="cart my-2 my-lg-0">
                             <span>
@@ -60,6 +66,19 @@
             </div>
         </div>
     </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="container mt-3">
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="close" data-dismiss="alert">&times;</button>
+                </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endwith %}
 
     <section class="recomended-sec">
         <div class="container">

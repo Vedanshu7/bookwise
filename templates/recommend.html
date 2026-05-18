@@ -1,78 +1,161 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8">
+    <title>Recommendations — BookWise</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style/main.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style/dashboard.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style/admin.css') }}">
-</head>
-
+    <meta name="theme-color" content="#03a6f3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style/styles.css') }}">
+    <link href="https://fonts.googleapis.com/css?family=Montserrat:200,300,400,500,600,700,800,900" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <style>
+        .selected-book-card {
+            background: linear-gradient(135deg, #03a6f3 0%, #0276b1 100%);
+            color: #fff;
+            border-radius: 10px;
+            padding: 2rem;
+        }
+        .selected-book-card .price-badge {
+            background: rgba(255,255,255,0.25);
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .rec-card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .rec-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.13);
+        }
+        .rec-card .card-title { font-weight: 700; font-size: 1rem; }
+        .stat-pill {
+            display: inline-block;
+            background: #f0f4f8;
+            border-radius: 12px;
+            padding: 2px 10px;
+            font-size: 0.78rem;
+            color: #555;
+            margin-right: 4px;
+            margin-bottom: 4px;
+        }
+        .empty-state { text-align: center; padding: 4rem 0; color: #888; }
+        .empty-state i { font-size: 3rem; margin-bottom: 1rem; }
+    </style>
 </head>
 
 <body>
-    <div class="header">
-        <a href="{{ url_for('logout') }}" class="btn btn-info btn-lg" style="float:right">
-            <span class="glyphicon glyphicon-log-out"></span> Log out
-        </a>
-    </div>
+    <header>
+        <div class="main-menu">
+            <div class="container">
+                <nav class="navbar navbar-expand-lg navbar-light">
+                    <a class="navbar-brand" href="{{ url_for('index') }}">
+                        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="BookWise">
+                    </a>
+                    <button class="navbar-toggler" type="button" data-toggle="collapse"
+                        data-target="#navbarMain" aria-controls="navbarMain"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <div class="collapse navbar-collapse" id="navbarMain">
+                        <ul class="navbar-nav ml-auto">
+                            <li class="navbar-item">
+                                <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+                            </li>
+                            <li class="navbar-item active">
+                                <a href="{{ url_for('recommend') }}" class="nav-link">Recommendations</a>
+                            </li>
+                            <li class="navbar-item">
+                                <a href="{{ url_for('products') }}" class="nav-link">Products</a>
+                            </li>
+                            <li class="navbar-item">
+                                <a href="{{ url_for('logout') }}" class="nav-link">
+                                    <i class="fa fa-sign-out"></i> Logout
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </nav>
+            </div>
+        </div>
+    </header>
 
-    <!-- Content -->
-    <div class="main">
-        <div class="hipsum">
-            <div class="jumbotron">
-                <div class="container">
-                    <main class="grid">
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="close" data-dismiss="alert">&times;</button>
+                </div>
+            {% endfor %}
+        {% endwith %}
 
-                        <article>
-                            <div class="text">
-                              <h3>{{ request.args.get('a')}}</h3>
-                              <h4>Price: $ {{ request.args.get('b')}}</h4>
-                            </div>
+        <!-- Selected book -->
+        <div class="selected-book-card mb-5">
+            <div class="d-flex justify-content-between align-items-start flex-wrap">
+                <div>
+                    <p class="mb-1" style="opacity:0.8;font-size:0.85rem;text-transform:uppercase;letter-spacing:1px;">You selected</p>
+                    <h2 class="mb-2 font-weight-bold">{{ request.args.get('a', '—') }}</h2>
+                    <span class="price-badge">${{ request.args.get('b', '—') }}</span>
+                </div>
+                <a href="{{ url_for('index') }}" class="btn btn-light mt-2">
+                    <i class="fa fa-arrow-left"></i> Continue shopping
+                </a>
+            </div>
+        </div>
 
-                        </article>
+        <!-- Recommendations -->
+        <h4 class="mb-3 font-weight-bold">Books you might also like</h4>
 
-                    </main>
-                    <article style="float:right">
-                            <div class="text float-right">
-                                <a href="{{ url_for('.index') }}"> <input type="submit" class="btn btn-success" value="Continue Shopping"></a>
+        {% set ns = namespace(found=false) %}
+        {% for i in x %}
+            {% if i['antecedents'] == request.args.get('a') %}
+                {% set ns.found = true %}
+            {% endif %}
+        {% endfor %}
+
+        {% if ns.found %}
+            <div class="row">
+                {% for i in x %}
+                    {% if i['antecedents'] == request.args.get('a') %}
+                        <div class="col-lg-4 col-md-6 mb-4">
+                            <div class="card rec-card h-100">
+                                <div class="card-body d-flex flex-column">
+                                    <h5 class="card-title">{{ i['consequents'] }}</h5>
+                                    <p class="card-text text-muted mb-auto">
+                                        <span class="stat-pill"><i class="fa fa-bar-chart"></i> Lift {{ "%.2f"|format(i['lift']) }}</span>
+                                        <span class="stat-pill"><i class="fa fa-check-circle"></i> {{ "%.0f"|format(i['confidence'] * 100) }}% confidence</span>
+                                    </p>
+                                    <div class="mt-3 d-flex justify-content-between align-items-center">
+                                        <span class="font-weight-bold" style="font-size:1.2rem; color:#03a6f3">${{ i['Price_C'] }}</span>
+                                        <a href="{{ url_for('recommend', a=i['consequents'], b=i['Price_C']) }}"
+                                           class="btn btn-primary btn-sm">
+                                            See recommendations <i class="fa fa-long-arrow-right"></i>
+                                        </a>
+                                    </div>
                                 </div>
-                        </article>
-                </div>
-
-            </div>
-        </div>
-    </div>
-
-    <!-- recommend -->
-
-   <div class="main">
-        <div class="hipsum">
-            <div class="jumbotron">
-                <div class="container">
-                     <h3>Recommended Product</h3>
-                    <main class="grid">
-                        {% for i in x %}
-                         {% if i['antecedents'] == request.args.get('a') %}
-                        <article>
-                            <div class="text">
-                              <h3>{{i['consequents']}}</h3>
-                              <h4>Price: $ {{i['Price_C'] }}</h4>
-                                <a href="{{ url_for('recommend',a=i['consequents'], b=i['Price_C']) }}" class="btn btn-primary btn-block" >Buy Product</a>
                             </div>
-                        </article>
-                        {% endif %}
-                        {% endfor %}
-                    </main>
-                </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
             </div>
-        </div>
+        {% else %}
+            <div class="empty-state">
+                <i class="fa fa-book text-muted d-block"></i>
+                <p>No recommendations found for this book yet.<br>Check back after the next pipeline run.</p>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-primary">Go back home</a>
+            </div>
+        {% endif %}
     </div>
 
-
-
-
-
+    <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
 </body>
 
 </html>
