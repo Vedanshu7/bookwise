@@ -64,4 +64,4 @@ bookwise/
 
 ## License
 
-MIT
+[MIT](LICENSE)
