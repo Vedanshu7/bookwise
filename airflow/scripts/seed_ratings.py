@@ -1,24 +1,34 @@
+#!/usr/bin/env python
 """
-seed_ratings.py — populate MongoDB with sample ratings for pipeline testing.
+seed_ratings — populate MongoDB with sample books and ratings for pipeline testing.
 
-Run once after `docker compose up`:
-    docker compose exec mongo mongosh Bookify --eval "db.ratings.drop()"
-    docker compose exec airflow-worker python /opt/airflow/dags/../scripts/seed_ratings.py
+Run after `docker compose up`:
 
-Or directly:
+    docker compose exec airflow-worker \\
+        python /opt/airflow/scripts/seed_ratings.py
+
+Or locally:
+
     MONGO_URI=mongodb://localhost:27017/Bookify python airflow/scripts/seed_ratings.py
+
+Import as:
+
+    import airflow.scripts.seed_ratings as airscseera
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import random
 
 import pymongo
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/Bookify")
+_LOG = logging.getLogger(__name__)
 
-BOOKS = [
+_MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/Bookify")
+
+_BOOKS = [
     {"title": "The Great Gatsby",       "price": 9.99},
     {"title": "To Kill a Mockingbird",  "price": 12.99},
     {"title": "1984",                   "price": 8.99},
@@ -31,14 +41,23 @@ BOOKS = [
     {"title": "Foundation",             "price": 11.99},
 ]
 
+# Fix the seed so generated ratings are reproducible across runs.
 random.seed(42)
 
 
-def generate_ratings(n_users: int = 200) -> list[dict]:
+def _generate_ratings(n_users: int = 200) -> list[dict]:
+    """
+    Generate synthetic per-user book ratings.
+
+    Each user rates a random subset of 2–6 books with a rating in [3, 5].
+
+    :param n_users: number of synthetic users to generate
+    :return: list of rating documents with keys: user, book, rating
+    """
     ratings = []
     for user_idx in range(n_users):
-        # Each user rates a random subset of 2-6 books.
-        sampled = random.sample(BOOKS, k=random.randint(2, 6))
+        # Sample a random subset of books for this user.
+        sampled = random.sample(_BOOKS, k=random.randint(2, 6))
         for book in sampled:
             ratings.append({
                 "user":   f"user_{user_idx:04d}",
@@ -49,20 +68,23 @@ def generate_ratings(n_users: int = 200) -> list[dict]:
 
 
 def main() -> None:
-    client = pymongo.MongoClient(MONGO_URI)
+    """
+    Seed the books and ratings collections in MongoDB.
+    """
+    client = pymongo.MongoClient(_MONGO_URI)
     db = client.Bookify
-
+    # Populate the book catalog.
     db.books.drop()
-    db.books.insert_many(BOOKS)
-    print(f"Inserted {len(BOOKS)} books into 'books'.")
-
+    db.books.insert_many(_BOOKS)
+    _LOG.info("Inserted %d books into 'books'.", len(_BOOKS))
+    # Populate the ratings used by the pipeline.
     db.ratings.drop()
-    ratings = generate_ratings()
+    ratings = _generate_ratings()
     db.ratings.insert_many(ratings)
-    print(f"Inserted {len(ratings)} ratings into 'ratings'.")
-
+    _LOG.info("Inserted %d ratings into 'ratings'.", len(ratings))
     client.close()
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     main()
