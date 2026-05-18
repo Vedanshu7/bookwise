@@ -1,10 +1,28 @@
+# Environment
 .env
+
+# Python
 venv/
 __pycache__/
 *.pyc
-.idea/
-new.txt
+*.pyo
+*.pyd
 *.egg-info/
 dist/
+.pytest_cache/
+.mypy_cache/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Junk
+new.txt
+
+# Airflow
 airflow/logs/
 airflow/plugins/
+
+# Docker
+docker-compose.override.yml
